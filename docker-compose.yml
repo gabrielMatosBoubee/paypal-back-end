@@ -1,0 +1,20 @@
+version: '1.0'
+services:
+  paypal-back:
+    container_name: paypal-back
+    image: node:16.14
+    restart: always
+    user: node
+    ports:
+      - 3001:3001
+    environment:
+      - CLIENT_ID=ARcXNIfrwUwed-zseg6cd2tmsRPIzQyAB_YXjdrFYeYDblq6v0uFchUcAjLel979w_ycnSmd-tod1kGa
+      - APP_SECRET=EFl39m6uJ_8C2MN7nboEqe9AnJjI42-uUdRN9CJsuSwcwCNO47r6UK79gMC-rF4Ps553xz8ehBj_IFQw
+      - URL_BASE=https://sandbox.paypal.com
+      - NODE_ENV=developing
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: bash
+    tty: true
+    stdin_open: true
