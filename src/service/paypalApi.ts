@@ -1,79 +1,91 @@
-import fetch from "axios";
+import axios from "axios";
 
-const { CLIENT_ID = "", APP_SECRET = "", URL_BASE, NODE_ENV } = process.env;
+const { CLIENT_ID = "", APP_SECRET = "", URL_BASE, NODE_ENV, PORT = 3001 } = process.env;
 
-import paypal from "@paypal/checkout-server-sdk"
+export const HOST =
+  NODE_ENV === "production"
+    ? process.env.HOST
+    : "http://localhost:" + PORT;
 
-const Environment =
-  process.env.NODE_ENV === "production"
-    ? paypal.core.LiveEnvironment
-    : paypal.core.SandboxEnvironment
 
-const paypalClient = new paypal.core.PayPalHttpClient(
-  new Environment(
-    CLIENT_ID as string,
-    APP_SECRET as string
-  )
-)
+const generateAccessToken = async() => {
+    const auth = {
+        username: CLIENT_ID,
+        password: APP_SECRET,
+      }
+    const url = `${URL_BASE}/v1/oauth2/token`
+   const { data: { access_token }} = await axios.post(url, {
+        grant_type: 'client_credentials',
+      }, {
+        auth,
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+    })
+
+    return access_token
+}
 
 
 export async function handleResponse(response: any) {
     if (response.status === 200 || response.status === 201) {
-        return response.json()
+        return response.data
     }
     
     const errorMessage = await response.text();
     throw new Error(errorMessage);
 }
 
-export async function generateAccessToken() {
-    const auth = Buffer.from(CLIENT_ID + ":" + APP_SECRET).toString("base64")
-    const url = `${URL_BASE}/v1/oauth2/token`;
-    const response = await fetch(url, {
-        method: "post",
-        data: "grant_type=client_credentials",
+export async function capturePayment(orderID: string): Promise<any> {
+    const token = await generateAccessToken()
+    const response = await axios.post(`${URL_BASE}/v2/checkout/orders/${orderID}/capture`, {}, {
         headers: {
-            Authorization: `Basic ${auth}`,
-        },
+            Authorization: `Bearer ${token}`
+        }
     })
-    const jsonData = await handleResponse(response);
-    return jsonData.access_token;
-    
+    return response.data
 }
 
 export async function createOrder() {
-    const request = new paypal.orders.OrdersCreateRequest()
-    request.prefer("return=representation")
-    request.requestBody({
-        "intent": "CAPTURE",
-        "purchase_units": [
-            {
-                "amount": {
-                    "currency_code": "USD",
-                    "value": "100.00"
-                }
-            }
-         ]
-    });
-    try {
-        const order = await paypalClient.execute(request)
-        console.log(order)
-        return order
-      } catch (error) {
-        return error
-      }
-    }
-
-export async function capturePayment(orderID: string): Promise<any> {
-    const accessToken  = await generateAccessToken();
-    const response = await fetch(`${URL_BASE}/v2/checkout/orders/${orderID}/capture`, {
-        method: "post",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
+try {
+    
+    const order = {
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          amount: {
+            currency_code: "BRL",
+            value: "105.70",
+          },
         },
-    })
+      ],
+      application_context: {
+        brand_name: "mycompany.com",
+        landing_page: "NO_PREFERENCE",
+        user_action: "PAY_NOW",
+        return_url: `${HOST}/capture-order`,
+        cancel_url: `${HOST}/cancel-payment`,
+      },
+    };
+
+    const token = await generateAccessToken()
+
+    const response = await axios.post(
+      `${URL_BASE}/v2/checkout/orders`,
+      order,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
     return handleResponse(response)
 }
+    catch(error) {
+        return error
+    }
+}
 
-export default { createOrder, capturePayment}
+
+export default { createOrder, capturePayment }
