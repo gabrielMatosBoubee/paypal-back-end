@@ -1,4 +1,5 @@
 import axios from "axios";
+import { IForm, IItem } from "../interfaces/createOrder";
 
 const { CLIENT_ID = "", APP_SECRET = "", URL_BASE, NODE_ENV, PORT = 3001 } = process.env;
 
@@ -43,20 +44,36 @@ export async function capturePayment(orderID: string): Promise<any> {
             Authorization: `Bearer ${token}`
         }
     })
-    return response.data
-}
+    return handleResponse(response)
+  }
 
-export async function createOrder() {
+  
+  const calcSumItens = async (cart: IItem[])  => {
+    return cart.reduce((soma, item) => soma + item.value * item.quantity, 0);
+  }
+
+export async function createOrder({form, cart}: {form: IForm, cart: IItem[]}) {
+const { address1, address2, city, state, postalCode, country } = form
+
+  const value = await calcSumItens(cart)
 try {
-    
+  const shipping = {
+    address: { "address_line_1": address1, 
+    "address_line_2": address2, 
+    "admin_area_2": city, 
+    "admin_area_1": state, 
+    "postal_code": postalCode, 
+    "country_code": country }
+  }
     const order = {
       intent: "CAPTURE",
       purchase_units: [
         {
           amount: {
             currency_code: "BRL",
-            value: "105.70",
+            value,
           },
+          shipping        
         },
       ],
       application_context: {
@@ -67,6 +84,7 @@ try {
         cancel_url: `${HOST}/cancel-payment`,
       },
     };
+
 
     const token = await generateAccessToken()
 

@@ -1,9 +1,12 @@
 import { Request, Response } from 'express';
 import services from '../service';
 
-const createOrder = async (_req: Request, res: Response) => {
+const createOrder = async (req: Request, res: Response) => {
+    const { form, cart } = req.body
+    cart.quantity = Number(cart.quantity) ?? undefined
+    cart.value = Number(cart.value ) ?? undefined
     try {
-        const order = await services.paypalApi.createOrder()
+        const order = await services.paypalApi.createOrder({form, cart})
         res.status(201).json(order);
     } catch (error) {
         res.status(500).json({message: error})
